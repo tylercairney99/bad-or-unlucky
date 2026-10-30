@@ -5,7 +5,7 @@ All workers code against these shapes so modules can be built in parallel.
 
 ## Ground rules (all workers)
 
-- **No build step.** Plain ES modules (`<script type="module">`), no npm runtime deps. Node 22 is used only for tests (`node --test tests/`).
+- **No build step.** Plain ES modules (`<script type="module">`), no npm runtime deps. Node 22 is used only for tests (`node --test` from the project root).
 - **Pure engine.** `js/analysis.js` never touches the DOM, network, or `Date.now()`. Same input → same output.
 - **Untrusted text.** Team names, usernames, league names come from the API and are user-controlled. UI must render them with `textContent` / attribute setters only — never `innerHTML` with API data.
 - **No secrets, no tracking, no backend.** Everything runs in the visitor's browser against Sleeper's public read-only API.
