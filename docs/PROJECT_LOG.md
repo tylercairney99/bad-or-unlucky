@@ -1,0 +1,59 @@
+# Project Log — Bad or Unlucky?
+
+> Running record of decisions, changes, and the roadmap. Newest entries at the bottom of each section.
+> Anyone (human or agent) picking this project up should read this file first, then `CONTRACT.md`.
+
+## Mission
+
+Answer one question for a fantasy football manager in under 10 seconds:
+**"Is my team actually bad, or am I just unlucky?"**
+Luck factors in scope (from the product owner): injuries to my players, opponents overachieving against me, and my players underachieving vs their own trend — all compared against the other managers in my league.
+Feel: a modern "daily game" — one input, instant big reveal, Wordle-style shareable result.
+
+## Team (org chart)
+
+```
+Product Owner (Tyler) ── reviews only items tagged MUST REVIEW
+        │
+Lead / Eng Manager (main Claude session)
+  ├─ owns contracts, integration, code review, project log, deploy
+  │
+  ├─ Research squad
+  │    ├─ Design Researcher    → docs/DESIGN_BRIEF.md
+  │    └─ API Engineer          → js/sleeper.js, anonymized fixture, API notes
+  │
+  ├─ Build squad
+  │    ├─ Analytics Engineer    → js/analysis.js, js/demo.js, tests
+  │    └─ Frontend Engineer     → index.html, css/, js/app.js, js/share.js
+  │
+  └─ QA & Security Reviewer    → docs/QA_REPORT.md, bug list back to Lead
+```
+
+## Decisions (ADR-lite)
+
+| # | Date | Decision | Why |
+|---|---|---|---|
+| D1 | 2026-10-30 | Name: **Bad or Unlucky?** | It *is* the user's question; funny, shareable, self-explanatory. |
+| D2 | 2026-10-30 | Static site, vanilla ES modules, **no build step, no backend** | Ships today, hosts anywhere (GitHub Pages), nothing to keep running, no server to secure. |
+| D3 | 2026-10-30 | **Sleeper first** (public, no-auth, CORS-enabled read API) | ESPN private leagues need the user's `espn_s2`/`SWID` cookies (credential-handling risk); Yahoo needs OAuth + a backend. Both deferred to roadmap. |
+| D4 | 2026-10-30 | Luck model: **all-play expected wins** for schedule luck; **leave-one-out season averages** as each player's/opponent's "trend" baseline | All-play is the standard, explainable fantasy luck metric. Leave-one-out avoids a game grading itself and works early-season. |
+| D5 | 2026-10-30 | 6-way verdict matrix (strength × luck): ROBBED / LEGIT / COOKING / CURSED / BAD / FRAUD | Gives a one-word answer like a daily game, uses fantasy slang people already share. |
+| D6 | 2026-10-30 | Hash-based routing (`#/l/<leagueId>/<teamId>`) | Shareable deep links; the hash never reaches the web server, so no league ids in host logs. |
+| D7 | 2026-10-30 | Commits use GitHub **noreply** email | Keeps the owner's personal email out of public git history. |
+| D8 | 2026-10-30 | Progressive results: verdict from matchup data first, player-level stats when the (large) players DB arrives | "Quickly see results" — the players DB is several MB. |
+| D9 | 2026-10-30 | Hosting: **GitHub Pages** (`tylercairney99.github.io/bad-or-unlucky`), pending owner sign-in | claude.ai Artifact hosting was evaluated and rejected: its CSP blocks `fetch` to `api.sleeper.app`, so only demo mode would work. No gh/vercel/netlify CLI is installed or logged in; the browser pane and Chrome are not signed into GitHub. `git push` works via the stored credential manager, so the only missing step is creating the repo — the owner must sign in (Lead never enters passwords or extracts stored tokens). Flagged MUST REVIEW because the public URL/repo carry the owner's GitHub identity. |
+
+## Change log
+
+- 2026-10-30 — Project scaffolded (`docs/`, `js/`, `css/`, `tests/`). Contracts written (`CONTRACT.md`). Sleeper API reachable; NFL state = 2026 season, week 8 in progress → weeks 1–7 analyzable.
+
+## Roadmap
+
+- **v1 (today):** Sleeper username/league-id → league & team pick → verdict, weekly luck tiles, luck breakdown (schedule / opponent heat / injuries / slumps), lineup efficiency, league luck leaderboard, share text, demo league, deploy.
+- **v1.1:** ESPN public leagues (if CORS allows from browser), past-season compare, "roast a friend" share cards (PNG).
+- **v2:** Yahoo / ESPN private via small serverless proxy (needs security review: never store cookies/tokens), projection-based "expected" points, weekly email/notification of new luck.
+
+## Open questions / risks
+
+- Sleeper's players DB (`/v1/players/nfl`) is large; must cache in IndexedDB and load after first paint.
+- Injury detection has no historical injury feed → inferred from "key player on roster scored 0 while his NFL team played" (byes inferred). Document as an estimate in the UI.
