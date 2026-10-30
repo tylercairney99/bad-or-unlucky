@@ -16,6 +16,8 @@ import {
   activeMean,
   optimalLineup,
   inferByeWeeks,
+  percentile,
+  VERDICTS,
 } from '../js/analysis.js';
 import { generateDemoLeague, DEMO_YOUR_TEAM_ID } from '../js/demo.js';
 
@@ -111,6 +113,19 @@ describe('helpers', () => {
     assert.equal(classifyVerdict(0.1, 3), 'FRAUD');
     // floating-point noise at the boundary still lands on the inclusive side
     assert.equal(classifyVerdict(0.5 - 1e-12, -0.75 + 1e-12), 'ROBBED');
+  });
+
+  test('verdict emoji are old enough to render on Windows 10 / older Android (Emoji <= 12)', () => {
+    assert.deepEqual(Object.fromEntries(Object.values(VERDICTS).map((v) => [v.code, v.emoji])), {
+      ROBBED: '🚨', LEGIT: '💪', COOKING: '🔥', CURSED: '💀', BAD: '🗑️', FRAUD: '🤡',
+    });
+    // Emoji 12.0 started at U+1F971 (plus U+1FA70+ blocks); everything here predates it.
+    for (const { emoji } of Object.values(VERDICTS)) {
+      for (const ch of emoji) {
+        const cp = ch.codePointAt(0);
+        assert.ok(cp === 0xfe0f || (cp >= 0x1f300 && cp <= 0x1f92f), `U+${cp.toString(16)}`);
+      }
+    }
   });
 });
 
@@ -393,13 +408,16 @@ describe('injuries and byes', () => {
     assert.deepEqual(inferByeWeeks(d2), {});
   });
 
-  test('key player 0 on a non-bye week is a missed game; bye week is excluded', () => {
+  test('key player 0 on a non-bye week is a missed game, valued over replacement; bye excluded', () => {
     const inj = byId(analyzeLeague(data), 1).luck.injuries;
     assert.equal(inj.gamesMissed, 1);
-    assert.equal(inj.pointsLost, 20); // s1 active mean = (20+10+30)/3
-    assert.deepEqual(inj.cases, [{ playerId: 's1', name: 'Star One', week: 4, expected: 20 }]);
+    // RB active starter scores (10 samples): 9,10,10,11,12,13,14,15,20,30 => 25th pct = 10.25.
+    // s1 active mean = (20+10+30)/3 = 20 => lost 9.75 (displays 9.8)
+    assert.equal(inj.pointsLost, 9.8);
+    assert.deepEqual(inj.cases, [{ playerId: 's1', name: 'Star One', week: 4, expected: 20, lost: 9.8 }]);
     assert.equal(inj.rank, 1);
     assert.equal(byId(analyzeLeague(data), 2).luck.injuries.gamesMissed, 0);
+    assert.match(byId(analyzeLeague(data), 1).verdict.reasons.join('\n'), /Injuries cost you ~10 pts vs replacement over 1 missed game \(most in the league\)/);
   });
 
   test('explicit byeWeeks override inference', () => {
@@ -407,23 +425,68 @@ describe('injuries and byes', () => {
     assert.deepEqual(inj.cases.map((c) => c.week), [5]);
   });
 
-  test('non-key bench player is ignored; 50%-of-active-weeks rule makes a key player', () => {
-    // b1 never starts => his week-2 zero is ignored (covered above). Now start b1 only in week 1:
-    // 1 start in 4 active weeks (25%) => still not key.
-    const d2 = structuredClone(data);
-    d2.weeks[0].matchups[0].starters = ['s1', 'b1'];
-    d2.weeks[0].matchups[0].startersPoints = [20, 3];
-    d2.league.rosterPositions = ['RB', 'RB', 'BN'];
-    assert.ok(byId(analyzeLeague(d2), 1).luck.injuries.cases.every((c) => c.playerId !== 'b1'));
-    // A player active once and started that week (100%) is key: x1 scores 9 in week 1 (started), 0 in week 2.
+  test('a one-week spot starter is no longer a key player', () => {
+    // x1 scores 9 in week 1 (started), 0 in week 2: 1 start < 2 => not key.
     const d3 = structuredClone(data);
     d3.players.x1 = { name: 'Spot Starter', position: 'RB', fantasyPositions: ['RB'], team: 'BBB' };
     d3.weeks[0].matchups[0].starters = ['s1', 'x1'];
     d3.weeks[0].matchups[0].startersPoints = [20, 9];
     d3.weeks[0].matchups[0].playerPoints.x1 = 9;
     d3.weeks[1].matchups[0].playerPoints.x1 = 0;
-    const cases = byId(analyzeLeague(d3), 1).luck.injuries.cases;
-    assert.deepEqual(cases.find((c) => c.playerId === 'x1'), { playerId: 'x1', name: 'Spot Starter', week: 2, expected: 9 });
+    d3.league.rosterPositions = ['RB', 'RB', 'BN'];
+    assert.ok(byId(analyzeLeague(d3), 1).luck.injuries.cases.every((c) => c.playerId !== 'x1'));
+  });
+
+  test('key-player rule: >= 2 starts AND >= 50% of active weeks AND mean >= 5; replacement fallback', () => {
+    const wr = (name) => ({ name, position: 'WR', fantasyPositions: ['WR'], team: 'CCC' });
+    const qb = (name) => ({ name, position: 'QB', fantasyPositions: ['QB'], team: 'DDD' });
+    const kp = { k1: wr('Key'), half: wr('Half'), third: wr('Third'), low: wr('Low'), spot: wr('Spot'), q2: qb('QB Two'), q3: qb('QB Three') };
+    const pts = {
+      k1: [10, 12, 14, 16, 0], // starts wk1-4 => key, mean 13
+      half: [6, 8, 10, 12, 0], // starts wk1-2 of 4 active weeks (exactly 50%) => key, mean 9
+      third: [7, 7, 7, 7, 0], // starts wk1 + wk5 (at 0): 2 starts but 1 of 4 active (25%) => not key
+      low: [3, 4, 3, 4, 0], // starts wk1-4 but mean 3.5 < 5 => not key
+      spot: [9, 0, 0, 0, 0], // 1 start => not key
+      q2: [20, 22, 24, 0, 0], // team 2 QB, starts wk1-3 => key, mean 22
+      q3: [null, null, null, 15, 16], // picked up in week 4 (not rostered before)
+    };
+    const t1Starts = [['k1', 'half', 'third', 'low', 'spot'], ['k1', 'half', 'low'], ['k1', 'low'], ['k1', 'low'], ['third']];
+    const t2Starts = [['q2'], ['q2'], ['q2'], ['q3'], ['q3']];
+    const team = (ids, starters, w) => {
+      const pp = Object.fromEntries(ids.filter((id) => pts[id][w] !== null).map((id) => [id, pts[id][w]]));
+      const sp = starters.map((id) => pp[id]);
+      return [starters, sp, pp, sp.reduce((a, b) => a + b, 0)];
+    };
+    const kw = [0, 1, 2, 3, 4].map((w) => {
+      const [s1, sp1, pp1, p1] = team(['k1', 'half', 'third', 'low', 'spot'], t1Starts[w], w);
+      const [s2, sp2, pp2, p2] = team(['q2', 'q3'], t2Starts[w], w);
+      return { week: w + 1, matchups: [m(1, 1, p1, s1, sp1, pp1), m(2, 1, p2, s2, sp2, pp2)] };
+    });
+    // explicit byes so CCC's all-zero week 5 is not inferred as a bye
+    const r = analyzeLeague(league({ teams: 2, weeks: kw, players: kp, rosterPositions: ['QB', 'WR', 'WR', 'BN'], byeWeeks: { ZZZ: 9 } }));
+    const inj1 = byId(r, 1).luck.injuries;
+    // WR active starter scores (12): 3,3,4,4,6,7,8,9,10,12,14,16 => 25th pct = 4
+    assert.deepEqual(inj1.cases, [
+      { playerId: 'k1', name: 'Key', week: 5, expected: 13, lost: 9 },
+      { playerId: 'half', name: 'Half', week: 5, expected: 9, lost: 5 },
+    ]);
+    assert.equal(inj1.pointsLost, 14);
+    assert.equal(inj1.gamesMissed, 2);
+    // QB has only 5 active starter scores (< 8) => replacement 0 => lost = full mean
+    const inj2 = byId(r, 2).luck.injuries;
+    assert.deepEqual(inj2.cases, [
+      { playerId: 'q2', name: 'QB Two', week: 4, expected: 22, lost: 22 },
+      { playerId: 'q2', name: 'QB Two', week: 5, expected: 22, lost: 22 },
+    ]);
+    assert.equal(inj2.pointsLost, 44);
+    assert.equal(inj2.rank, 1);
+  });
+
+  test('percentile helper (linear interpolation)', () => {
+    assert.equal(percentile([9, 10, 10, 11, 12, 13, 14, 15, 20, 30], 0.25), 10.25);
+    assert.equal(percentile([1, 2, 3, 4, 5], 0.25), 2);
+    assert.equal(percentile([5], 0.25), 5);
+    assert.equal(percentile([], 0.25), 0);
   });
 });
 
@@ -540,7 +603,7 @@ describe('verdict copy', () => {
     assert.equal(t1.recordRank, 4);
     assert.equal(t1.verdict.headline, "You're the best team in the league but sit 4th.");
     assert.equal(t1.verdict.title, 'ROBBED');
-    assert.equal(t1.verdict.emoji, '🫠');
+    assert.equal(t1.verdict.emoji, '🚨');
     assert.match(t1.verdict.reasons.join('\n'), /Your points deserved 2 wins, but you have 0 \(unluckiest in the league\)/);
     assert.match(t1.verdict.reasons.join('\n'), /3 opponents posted their season high against you/);
     assert.deepEqual(t1.weeks.map((w) => w.tile), ['robbed', 'robbed', 'robbed']);

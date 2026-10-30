@@ -29,7 +29,7 @@ export function renderBoard(entry, ui) {
     const first = teams[0];
     const last = teams[teams.length - 1];
     supers.replaceChildren(
-      superChip('🫠', 'Most robbed', first.name),
+      superChip('🚨', 'Most robbed', first.name),
       teams.length > 1 ? superChip('🤡', 'Luckiest', last.name) : null,
     );
 

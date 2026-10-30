@@ -48,11 +48,20 @@
  *    Injury "expected" is unaffected: always the player's overall active-week mean.
  *  - Byes: data.byeWeeks (abbr -> week, or week[]) when it has at least one key; else inferred
  *    (see inferByeWeeks).
- *  - Injuries: only players present in the players map are judged (we need the NFL team to rule
- *    out a bye). A key player whose team is null cannot be on bye, so his 0s count. Expected =
- *    his mean over all active weeks league-wide; a case is ignored when that mean is missing or
- *    <= 0. Limitation: a healthy scratch / stashed rookie who later became a starter also looks
- *    "injured" in his early 0 weeks — this is an estimate, as the UI must say.
+ *  - Injuries (Lead revision: value over replacement, stricter key players):
+ *    · Key player for team T = started for T in >= 2 weeks AND started in >= 50% of the weeks he
+ *      was active (!= 0) on T's roster AND his league-wide active-week mean >= 5 pts.
+ *    · Missed game = a key player on T's roster scored exactly 0 and his NFL team was not on bye.
+ *      Counted once per week whether or not he was started. Only players present in the players
+ *      map are judged (we need the NFL team); team null = can't be on bye, so his 0s count.
+ *    · cases[].expected = his league-wide active-week mean. Replacement level per primary
+ *      `position` = 25th percentile (linear interpolation) of all active starter scores at that
+ *      position, all teams and weeks; 0 if fewer than 8 samples. cases[].lost = max(0, expected −
+ *      replacement); pointsLost = Σ lost; gamesMissed counts every missed game (lost may be 0).
+ *      cases = top 5 by lost.
+ *    · Limitation: a healthy scratch who later became a starter also looks "injured" in his
+ *      early 0 weeks; past seasons use the players DB's CURRENT NFL team for the bye check.
+ *      This is an estimate, as the UI must say.
  *  - Optimal lineup: greedy as specified. Only players with points > 0 are used (an empty slot
  *    beats a negative score). Unknown slot names are treated as single-position slots named after
  *    themselves. Weekly optimal is floored at the points actually scored, so bench points are never
@@ -77,11 +86,13 @@ const EPS = 1e-9;
 
 export const COMPOSITE_WEIGHTS = Object.freeze({ schedule: 0.5, oppHeat: 0.2, injuries: 0.15, slumps: 0.15 });
 
+// Every emoji here is Emoji 1.0–3.0 (Unicode 6–9), so it renders on Windows 10 and older Android:
+// 🚨 U+1F6A8, 💪 U+1F4AA, 🔥 U+1F525, 💀 U+1F480, 🗑️ U+1F5D1+FE0F, 🤡 U+1F921 (Emoji 3.0).
 export const VERDICTS = Object.freeze({
-  ROBBED: Object.freeze({ code: 'ROBBED', title: 'ROBBED', emoji: '🫠' }),
+  ROBBED: Object.freeze({ code: 'ROBBED', title: 'ROBBED', emoji: '🚨' }),
   LEGIT: Object.freeze({ code: 'LEGIT', title: 'LEGIT', emoji: '💪' }),
   COOKING: Object.freeze({ code: 'COOKING', title: 'COOKING', emoji: '🔥' }),
-  CURSED: Object.freeze({ code: 'CURSED', title: 'CURSED', emoji: '🪦' }),
+  CURSED: Object.freeze({ code: 'CURSED', title: 'CURSED', emoji: '💀' }),
   BAD: Object.freeze({ code: 'BAD', title: 'BAD', emoji: '🗑️' }),
   FRAUD: Object.freeze({ code: 'FRAUD', title: 'FRAUD', emoji: '🤡' }),
 });
@@ -445,7 +456,50 @@ export function optimalLineup(rosterPositions, playerPoints, players) {
   return { total, lineup };
 }
 
-function computeInjuries(teamId, weeks, pWeeks, players, byes) {
+/**
+ * Percentile with linear interpolation between closest ranks (Excel PERCENTILE.INC / "type 7").
+ * @param {number[]} values
+ * @param {number} p  0..1
+ */
+export function percentile(values, p) {
+  if (!values.length) return 0;
+  const s = [...values].sort((a, b) => a - b);
+  const h = (s.length - 1) * Math.min(1, Math.max(0, num(p)));
+  const lo = Math.floor(h);
+  const hi = Math.min(s.length - 1, lo + 1);
+  return s[lo] + (h - lo) * (s[hi] - s[lo]);
+}
+
+export const REPLACEMENT_PERCENTILE = 0.25;
+export const REPLACEMENT_MIN_SAMPLES = 8;
+export const KEY_PLAYER_MIN_MEAN = 5;
+
+/**
+ * Replacement level per primary position: 25th percentile of every active (!= 0) starter score at
+ * that position across all teams and weeks; 0 when there are fewer than 8 such scores.
+ * @returns {Map<string, number>}
+ */
+function replacementLevels(weeks, players) {
+  const byPos = new Map();
+  for (const w of weeks) {
+    for (const e of w.entries.values()) {
+      e.starters.forEach((pid, i) => {
+        if (pid === '0' || e.startersPoints[i] === 0) return;
+        const pos = getPlayer(players, pid)?.position;
+        if (typeof pos !== 'string' || !pos) return;
+        if (!byPos.has(pos)) byPos.set(pos, []);
+        byPos.get(pos).push(e.startersPoints[i]);
+      });
+    }
+  }
+  const out = new Map();
+  for (const [pos, list] of byPos) {
+    out.set(pos, list.length >= REPLACEMENT_MIN_SAMPLES ? percentile(list, REPLACEMENT_PERCENTILE) : 0);
+  }
+  return out;
+}
+
+function computeInjuries(teamId, weeks, pWeeks, players, byes, replacement) {
   const stats = new Map(); // pid -> { starts, active, activeStarts, zeroWeeks }
   for (const w of weeks) {
     const e = w.entries.get(teamId);
@@ -467,20 +521,23 @@ function computeInjuries(teamId, weeks, pWeeks, players, byes) {
   const cases = [];
   for (const pid of [...stats.keys()].sort(cmpStr)) {
     const s = stats.get(pid);
-    const key = s.starts >= 2 || (s.active > 0 && s.activeStarts / s.active >= 0.5);
-    if (!key || !s.zeroWeeks.length) continue;
+    if (!s.zeroWeeks.length) continue;
+    // Key player: >= 2 starts for this team AND started in >= 50% of his active weeks here.
+    if (s.starts < 2 || !(s.active > 0 && s.activeStarts / s.active >= 0.5 - EPS)) continue;
     const info = getPlayer(players, pid);
     if (!info) continue;
     const expected = activeMean(pWeeks.get(pid));
-    if (expected === null || expected <= 0) continue;
+    if (expected === null || expected < KEY_PLAYER_MIN_MEAN - EPS) continue; // ...AND mean >= 5
+    const repl = replacement.get(info.position) ?? 0;
+    const lost = Math.max(0, expected - repl);
     const nfl = typeof info.team === 'string' && info.team ? info.team : null;
     for (const wk of s.zeroWeeks) {
       if (nfl && byes.get(nfl)?.has(wk)) continue;
-      cases.push({ playerId: pid, name: playerName(info, pid), week: wk, expected });
+      cases.push({ playerId: pid, name: playerName(info, pid), week: wk, expected, lost });
     }
   }
-  cases.sort((a, b) => cmpDesc(a.expected, b.expected) || a.week - b.week || cmpStr(a.playerId, b.playerId));
-  return { pointsLost: cases.reduce((t, c) => t + c.expected, 0), gamesMissed: cases.length, cases };
+  cases.sort((a, b) => cmpDesc(a.lost, b.lost) || cmpDesc(a.expected, b.expected) || a.week - b.week || cmpStr(a.playerId, b.playerId));
+  return { pointsLost: cases.reduce((t, c) => t + c.lost, 0), gamesMissed: cases.length, cases };
 }
 
 function computeSlumps(teamId, weeks, pWeeks, players, mode) {
@@ -655,9 +712,10 @@ export function analyzeLeague(data, options = {}) {
   if (hasPlayerData) {
     const pWeeks = buildPlayerWeeks(weeks);
     const byes = resolveByes(input.byeWeeks, weeks, players);
+    const replacement = replacementLevels(weeks, players);
     for (const id of teamIds) {
       const s = S.get(id);
-      s.injuries = computeInjuries(id, weeks, pWeeks, players, byes);
+      s.injuries = computeInjuries(id, weeks, pWeeks, players, byes, replacement);
       s.slumps = computeSlumps(id, weeks, pWeeks, players, slumpMode);
       let opt = 0;
       for (const w of weeks) {
@@ -775,9 +833,11 @@ export function analyzeLeague(data, options = {}) {
     if (hasPlayerData) {
       const inj = s.injuries;
       const iRank = injRank.get(id);
-      const injText = inj.gamesMissed && Math.round(inj.pointsLost) > 0
-        ? `Injuries cost you ~${Math.round(inj.pointsLost)} pts over ${inj.gamesMissed} missed ${plural(inj.gamesMissed, 'game')} (${rankMost(iRank, N, 'fewest')})`
-        : 'Your key players stayed on the field all season';
+      const games = `${inj.gamesMissed} missed ${plural(inj.gamesMissed, 'game')}`;
+      let injText;
+      if (!inj.gamesMissed) injText = 'Your key players stayed on the field all season';
+      else if (Math.round(inj.pointsLost) > 0) injText = `Injuries cost you ~${Math.round(inj.pointsLost)} pts vs replacement over ${games} (${rankMost(iRank, N, 'fewest')})`;
+      else injText = `Injuries barely hurt: ~0 pts vs replacement over ${games}`;
       add('injuries', z.injuries.get(id), injText);
 
       const net = s.slumps.net;
@@ -867,7 +927,7 @@ export function analyzeLeague(data, options = {}) {
             pointsLost: roundTo(s.injuries.pointsLost, 1),
             gamesMissed: s.injuries.gamesMissed,
             rank: injRank.get(id),
-            cases: s.injuries.cases.slice(0, 5).map((c) => ({ playerId: c.playerId, name: c.name, week: c.week, expected: roundTo(c.expected, 1) })),
+            cases: s.injuries.cases.slice(0, 5).map((c) => ({ playerId: c.playerId, name: c.name, week: c.week, expected: roundTo(c.expected, 1), lost: roundTo(c.lost, 1) })),
           }
           : null,
         slumps: hasPlayerData

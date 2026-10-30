@@ -6,7 +6,7 @@ const ROW = 7; // matches the on-screen grid
 
 /**
  * Bad or Unlucky? 🏈 2026 · Wk 1–7
- * ROBBED 🫠
+ * ROBBED 🚨
  * 4-3 · should be 5.6-1.4
  * 🟩🟨🟩🟥🟨🟩🟩
  * Luck rank: 2nd unluckiest of 12

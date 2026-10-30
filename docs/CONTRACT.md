@@ -165,7 +165,7 @@ Notes (v1.0, from API Engineer):
 
 ```
 Bad or Unlucky? 🏈 2026 · Wk 1–7
-ROBBED 🫠
+ROBBED 🚨
 4-3 · should be 5.6-1.4
 🟩🟨🟩🟥🟨🟩🟩
 Luck rank: 2nd unluckiest of 12
