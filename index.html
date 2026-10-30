@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://sleepercdn.com; font-src 'self'; connect-src https://api.sleeper.app https://api.sleeper.com; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Bad or Unlucky?</title>
+  <meta name="description" content="Is your fantasy football team actually bad, or just unlucky? Enter your Sleeper username and get a verdict in seconds. No login, no tracking.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Bad or Unlucky?">
+  <meta property="og:title" content="Bad or Unlucky?">
+  <meta property="og:description" content="Your record lies. We checked. Find out if your fantasy team is actually bad — or just unlucky.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#F7F5F0" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0F1115" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="assets/fonts/big-shoulders-display-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="js/theme.js"></script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <button class="icon-btn back-btn" id="back-btn" type="button" aria-label="Back" hidden>
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <a class="wordmark" href="#/">Bad or Unlucky?</a>
+      <div class="topbar-actions">
+        <button class="icon-btn" id="theme-btn" type="button" aria-label="Switch to dark theme">
+          <svg class="icon-moon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          <svg class="icon-sun" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <button class="icon-btn help-btn" id="help-btn" type="button" aria-haspopup="dialog" aria-controls="how" aria-label="How it works">?</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="app" tabindex="-1">
+    <noscript><p class="noscript">Bad or Unlucky? needs JavaScript to read your league from Sleeper. Nothing is tracked.</p></noscript>
+  </main>
+
+  <footer class="site-footer">
+    <p>Sleeper only for now · No login · No tracking · Not affiliated with Sleeper</p>
+    <p><a href="https://github.com/tylercairney99/bad-or-unlucky" rel="noopener">Source on GitHub</a></p>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="sr-only" id="announcer" aria-live="polite"></div>
+
+  <dialog class="sheet" id="how" aria-labelledby="how-title">
+    <div class="sheet-inner">
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <div class="sheet-head">
+        <h2 id="how-title">How it works</h2>
+        <button class="icon-btn" type="button" data-close aria-label="Close">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <ol class="how-list">
+        <li>We pull your league from Sleeper — public data, no login.</li>
+        <li>Each week we compare your score with <em>every</em> team, not just your opponent.</li>
+        <li>
+          Each week gets a tile:
+          <ul class="legend-list">
+            <li><span class="tile tile-sm" data-k="earned" aria-hidden="true">W</span> Earned win — won and beat half the league</li>
+            <li><span class="tile tile-sm" data-k="stole" aria-hidden="true">★</span> Stole a win — won but scored low</li>
+            <li><span class="tile tile-sm" data-k="robbed" aria-hidden="true">!</span> Robbed — lost but beat half the league</li>
+            <li><span class="tile tile-sm" data-k="deserved" aria-hidden="true">L</span> Deserved loss</li>
+          </ul>
+        </li>
+        <li>Luck = schedule, opponents who went off against you, injuries, and your players slumping vs their own trend.</li>
+      </ol>
+      <table class="matrix">
+        <caption class="sr-only">Verdicts by team strength and luck</caption>
+        <thead>
+          <tr><td></td><th scope="col">Unlucky</th><th scope="col">Fair</th><th scope="col">Lucky</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Strong</th><td><span class="vchip" data-v="ROBBED">Robbed</span></td><td><span class="vchip" data-v="LEGIT">Legit</span></td><td><span class="vchip" data-v="COOKING">Cooking</span></td></tr>
+          <tr><th scope="row">Weak</th><td><span class="vchip" data-v="CURSED">Cursed</span></td><td><span class="vchip" data-v="BAD">Bad</span></td><td><span class="vchip" data-v="FRAUD">Fraud</span></td></tr>
+        </tbody>
+      </table>
+      <p class="footnote">Estimates, not gospel.</p>
+      <button class="btn btn-primary" type="button" data-close>Got it</button>
+    </div>
+  </dialog>
+</body>
+</html>
