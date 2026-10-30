@@ -41,16 +41,21 @@ Lead / Eng Manager (main Claude session)
 | D6 | 2026-10-30 | Hash-based routing (`#/l/<leagueId>/<teamId>`) | Shareable deep links; the hash never reaches the web server, so no league ids in host logs. |
 | D7 | 2026-10-30 | Commits use GitHub **noreply** email | Keeps the owner's personal email out of public git history. |
 | D8 | 2026-10-30 | Progressive results: verdict from matchup data first, player-level stats when the (large) players DB arrives | "Quickly see results" — the players DB is several MB. |
+| D10 | 2026-10-30 | Design brief accepted with Lead overrides: UI font **Barlow** (not Inter), display **Big Shoulders Display**, fonts **self-hosted** | Inter is the over-used default; self-hosting keeps visitors' IPs away from Google's font CDN ("no tracking"). |
+| D11 | 2026-10-30 | Strict **CSP** via meta tag; no inline scripts/styles; theme bootstrap in `js/theme.js` | API-sourced names are attacker-controllable; CSP is a second wall behind `textContent`-only rendering. `connect-src` limited to Sleeper. |
 | D9 | 2026-10-30 | Hosting: **GitHub Pages** (`tylercairney99.github.io/bad-or-unlucky`), pending owner sign-in | claude.ai Artifact hosting was evaluated and rejected: its CSP blocks `fetch` to `api.sleeper.app`, so only demo mode would work. No gh/vercel/netlify CLI is installed or logged in; the browser pane and Chrome are not signed into GitHub. `git push` works via the stored credential manager, so the only missing step is creating the repo — the owner must sign in (Lead never enters passwords or extracts stored tokens). Flagged MUST REVIEW because the public URL/repo carry the owner's GitHub identity. |
 
 ## Change log
 
 - 2026-10-30 — Project scaffolded (`docs/`, `js/`, `css/`, `tests/`). Contracts written (`CONTRACT.md`). Sleeper API reachable; NFL state = 2026 season, week 8 in progress → weeks 1–7 analyzable.
+- 2026-10-30 — Owner approved GitHub Pages (MUST REVIEW resolved) and signed in. Lead created public repo `tylercairney99/bad-or-unlucky`, pushed scaffold, enabled Pages (branch `main`, root). Added `.nojekyll` (serve files as-is) and `.gitattributes` (LF endings).
+- 2026-10-30 — Design Researcher delivered `DESIGN_BRIEF.md` (82-0 = viral NBA roster sim; Krillion = daily trivia "dive"; borrowed: one primary action per screen, result shape visible before it fills, one-word named result, inline how-to). Frontend Engineer started on the UI.
+- 2026-10-30 — API Engineer delivered `js/sleeper.js`, `docs/API_NOTES.md`, `scripts/capture-fixture.mjs`, and two anonymized fixtures (Test League A: 2025, 12 teams × 14 wks; Test League B: 2026 median league, 12 × 7). Findings: Sleeper sends `Access-Control-Allow-Origin: *` (direct browser calls OK, no preflight); players DB is 14.7 MB raw / 2.6 MB gzipped → slimmed to ~1 MB in IndexedDB; Sleeper's schedule endpoint gives exact bye weeks (used best-effort). ESPN private leagues 401 without cookies (confirms D3). Lead audit: fixtures contain no real names, user ids, avatars, or league ids; capture script takes the league id as a CLI arg so it is never committed. CONTRACT §3 updated (season option, extra exports, notes).
 
 ## Roadmap
 
 - **v1 (today):** Sleeper username/league-id → league & team pick → verdict, weekly luck tiles, luck breakdown (schedule / opponent heat / injuries / slumps), lineup efficiency, league luck leaderboard, share text, demo league, deploy.
-- **v1.1:** ESPN public leagues (if CORS allows from browser), past-season compare, "roast a friend" share cards (PNG).
+- **v1.1:** ESPN public leagues (CORS confirmed workable for public leagues), past-season compare, "roast a friend" share cards (PNG), `league.type`/`bestBall` flags (guillotine: hide H2H luck; best ball: hide lineup efficiency), exact injury-vs-inactive detection from Sleeper weekly stats `gp` (~75 KB/week).
 - **v2:** Yahoo / ESPN private via small serverless proxy (needs security review: never store cookies/tokens), projection-based "expected" points, weekly email/notification of new luck.
 
 ## Open questions / risks

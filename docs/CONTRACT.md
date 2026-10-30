@@ -145,10 +145,19 @@ All workers code against these shapes so modules can be built in parallel.
 export async function getNflState()                          // → { season, week, seasonType }
 export async function resolveUser(username)                  // → { userId, username, displayName, avatar } | throws NotFound
 export async function getUserLeagues(userId, season)         // → [{ id, name, season, totalRosters, status, avatar }]
-export async function loadLeague(leagueId, { onProgress })   // → LeagueData (players may be {}), completed weeks only
-export async function loadPlayers(playerIds)                 // → Object<string, Player> (cached ≥24h in IndexedDB)
+export async function loadLeague(leagueId, { onProgress, season })  // → LeagueData (players = {}), completed weeks only;
+                                                             //   `season` walks previous_league_id back to that season;
+                                                             //   fills `byeWeeks` best-effort from Sleeper's schedule endpoint
+export async function loadPlayers(playerIds)                 // → Object<string, Player> (cached 24h in IndexedDB; unknown ids → fantasyPositions [])
 export class SleeperError extends Error { /* .kind: 'not_found'|'network'|'rate_limit'|'no_games' */ }
+export function looksLikeLeagueId(str)                       // 15–20 digits
+export function completedWeeks(league, state)                // helper, exported for tests
+export function byeWeeksFromSchedule(games)                  // helper, exported for tests
 ```
+
+Notes (v1.0, from API Engineer):
+- `playoffWeekStart` is **19** when Sleeper's setting is 0 (no playoffs, e.g. guillotine). Any matchup id that isn't an exact pair is nulled.
+- Slot eligibility must use `fantasyPositions` (two-way players exist), not `position`.
 
 ## 4. `js/share.js`
 
