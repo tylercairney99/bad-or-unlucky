@@ -62,6 +62,7 @@ Lead / Eng Manager (main Claude session)
 - 2026-10-30 — Usage limit paused QA + Analytics mid-task (~09:50–14:00 PT); both resumed, no work lost.
 - 2026-10-30 — Injury estimate reworked (D14): 2025 fixture league average dropped from ~200 to 77 pts lost. Emoji swapped (D15). 41 tests green.
 - 2026-10-30 — QA & Security Reviewer: **no Blocker/High; no security holes; no PII or real league ids in tree or history**; all commits use the noreply email. XSS (mocked hostile names), 21 malicious hash routes, CSP, storage, third-party hosts, API politeness all pass. One League A team hand-checked: record, expected wins, all 14 weekly all-play counts match. First load ≈160 KB; verdict ≈20 ms after team pick. QA fixed M1 (long names overflowing at 320px), L1–L3. Lead fixed M2 (D16), L5 (headline uses H2H record), L6 (third-person copy on a friend's page). Open Lows L4, L7–L11 moved to roadmap. See `QA_REPORT.md`.
+- 2026-10-30 — **v1 deployed** to https://tylercairney99.github.io/bad-or-unlucky/ (Pages build ≈20 s after push). Live smoke test: demo → ROBBED; real 2026 league by id → team picker → verdict + 7 tiles + breakdown; players DB 1.4 s cold; zero console errors/CSP violations; all assets 200 with correct MIME types. Test storage cleared afterwards.
 
 ## Roadmap
 
