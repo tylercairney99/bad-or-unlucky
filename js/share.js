@@ -25,7 +25,7 @@ export function buildShareText(teamReport, report, url) {
     // H2H record vs H2H expected — in median leagues `record` also counts median games.
     `${recordText(teamReport.h2hRecord || teamReport.record, '-')} · should be ${fmt1(teamReport.expected.wins)}-${fmt1(teamReport.expected.losses)}`,
     ...rows,
-    `Luck rank: ${luckRankText(teamReport.luck.composite.rank, report.teams.length)}`,
+    `Luck rank: ${luckRankText(teamReport.luck.scheduleRank, report.teams.length)}`,
   ];
   if (url) lines.push(url);
   return lines.join('\n');

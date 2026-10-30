@@ -792,7 +792,8 @@ export function analyzeLeague(data, options = {}) {
     const expL = roundTo(s.games - expW, 1);
     const v = {
       n: N, sr: strengthRank.get(id), rr: recordRank.get(id), pr: pointsRank.get(id),
-      rec: fmtRecord(s.record),
+      // Headlines quote the H2H record so they match the big "You went" number in median leagues too.
+      rec: fmtRecord({ wins: s.h2h.w, losses: s.h2h.l, ties: s.h2h.t }),
       h2h: fmtRecord({ wins: s.h2h.w, losses: s.h2h.l, ties: s.h2h.t }),
       exp: `${fmtWins(expW)}-${fmtWins(expL)}`,
       apPctText: `${Math.round(s.apPct * 100)}%`,

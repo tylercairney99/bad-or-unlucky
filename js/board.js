@@ -25,7 +25,8 @@ export function renderBoard(entry, ui) {
   btnSkill.addEventListener('click', () => setMode('skill'));
 
   function paint() {
-    const teams = entry.report.teams; // contract order: unluckiest first
+    // Rank by wins above expected — the number each row shows and the axis the verdict is built on.
+    const teams = [...entry.report.teams].sort((a, b) => a.luck.scheduleRank - b.luck.scheduleRank);
     const first = teams[0];
     const last = teams[teams.length - 1];
     supers.replaceChildren(

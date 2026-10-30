@@ -212,6 +212,9 @@ main {
 
 /* ───────────── shared view bits ───────────── */
 .view { padding-top: var(--s-4); }
+/* One column that can shrink below its content: a long unbroken API name (league/team) must wrap or
+   ellipsize, never widen the grid track and push the page sideways (QA: 320px overflow). */
+.landing, .picker, .result, .result-card, .board { grid-template-columns: minmax(0, 1fr); }
 .screen-title { font-size: 24px; line-height: 1.2; font-weight: 700; }
 .sub { color: var(--muted); font-size: 15px; margin-top: var(--s-1); }
 .caps { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
@@ -413,6 +416,7 @@ main {
 .cases { display: grid; gap: var(--s-1); padding: 0 var(--s-4) var(--s-4); font-size: 14px; }
 .cases li { display: flex; justify-content: space-between; gap: var(--s-3); border-top: 1px dashed var(--border); padding-top: var(--s-1); }
 .cases .num { flex: none; font-weight: 600; }
+.cases li > span:first-child { min-width: 0; overflow-wrap: anywhere; } /* long opponent names wrap (QA) */
 .cases-note { font-size: 13px; color: var(--muted); padding: 0 var(--s-4) var(--s-4); }
 
 .dbar { position: relative; height: 10px; border-radius: var(--r-pill); background: var(--surface-2); }

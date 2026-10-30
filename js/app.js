@@ -348,7 +348,8 @@ function showError(err, r, token) {
       ? `No Sleeper user “${typed}”. Check the spelling, or paste a league ID.`
       : `No Sleeper league with ID “${typed}”. Check it, or try your username.`;
   } else if (kind === 'network') {
-    message = "Can't reach Sleeper. Check your connection.";
+    // err.status is set when Sleeper answered (HTTP 5xx / unreadable body): the user's connection is fine.
+    message = err.status ? 'Sleeper is having trouble right now. Try again in a minute.' : "Can't reach Sleeper. Check your connection.";
     actions = [retry];
   } else if (kind === 'rate_limit' && rateRetries < 3) {
     rateRetries += 1;

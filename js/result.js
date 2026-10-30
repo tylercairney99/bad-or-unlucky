@@ -28,6 +28,8 @@ export function renderResult(entry, teamId, ui) {
   const report = entry.report;
   const n = report.league.teamCount;
   const h2h = t.h2hRecord || t.record; // expected record is H2H-only, so compare like with like
+  const mine = teamId === ui.youId; // a friend's team (from the board or a shared link) gets third-person copy
+  const shareLabel = mine ? 'Share my result' : 'Share this result';
 
   // ── top card ──
   const detail = h('p', { class: 'tile-detail', id: 'tile-detail', 'aria-live': 'polite' }, 'Tap a week for the details.');
@@ -59,7 +61,7 @@ export function renderResult(entry, teamId, ui) {
       h('p', { class: 'verdict-sub rv', style: { '--rv': '0ms' } }, SUBTITLES[v.code] || ''),
       h('p', { class: 'verdict-headline rv', style: { '--rv': '60ms' } }, v.headline)),
     h('div', { class: 'record-pair rv', style: { '--rv': '120ms' } },
-      h('div', null, h('span', { class: 'record-label' }, 'You went'), h('span', { class: 'big-num' }, recordText(h2h))),
+      h('div', null, h('span', { class: 'record-label' }, mine ? 'You went' : 'They went'), h('span', { class: 'big-num' }, recordText(h2h))),
       h('div', null, h('span', { class: 'record-label' }, 'Should’ve gone'), h('span', { class: 'big-num' }, expectedText(t.expected)))),
     entry.data.league.medianGame
       ? h('p', { class: 'footnote record-note rv', style: { '--rv': '120ms' } }, `Overall ${recordText(t.record)} · Includes median games.`)
@@ -95,7 +97,7 @@ export function renderResult(entry, teamId, ui) {
   ];
 
   // ── share bar ──
-  const shareBtn = h('button', { class: 'btn btn-primary', type: 'button' }, 'Share my result');
+  const shareBtn = h('button', { class: 'btn btn-primary', type: 'button' }, shareLabel);
   const fallback = h('div', { class: 'share-fallback', hidden: true });
   let labelTimer = 0;
   shareBtn.addEventListener('click', async () => {
@@ -105,7 +107,7 @@ export function renderResult(entry, teamId, ui) {
       shareBtn.textContent = 'Copied ✓';
       ui.toast('Copied — paste it in the group chat.');
       clearTimeout(labelTimer);
-      labelTimer = setTimeout(() => (shareBtn.textContent = 'Share my result'), 1800);
+      labelTimer = setTimeout(() => (shareBtn.textContent = shareLabel), 1800);
     } else if (res === 'manual') {
       const ta = h('textarea', { readonly: true, id: 'share-text', rows: '7' });
       ta.value = text;
@@ -129,7 +131,7 @@ export function renderResult(entry, teamId, ui) {
 
   ui.mount(view);
   const ioCleanup = fadeInOnScroll(sections);
-  const summary = `Verdict: ${v.title}. You went ${recordText(h2h, '-')}, should have gone ${expectedText(t.expected, '-')}.`;
+  const summary = `Verdict: ${v.title}. ${mine ? 'You' : 'They'} went ${recordText(h2h, '-')}, should have gone ${expectedText(t.expected, '-')}.`;
   const stopReveal = reveal(view, t.weeks.length, `${entry.key}:${teamId}`, () => ui.announce(summary));
 
   const onUpdate = () => paintBelow();
@@ -298,7 +300,8 @@ function reveal(view, count, id, onDone) {
 
   const thud = setTimeout(() => {
     try {
-      navigator.vibrate?.(15);
+      // Chrome logs a console error for vibrate() before any user tap (e.g. opening a shared deep link).
+      if (!navigator.userActivation || navigator.userActivation.hasBeenActive) navigator.vibrate?.(15);
     } catch {
       /* not supported */
     }
